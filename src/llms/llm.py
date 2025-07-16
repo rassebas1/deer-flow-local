@@ -12,6 +12,8 @@ from src.config.agents import LLMType
 # Cache for LLM instances
 _llm_cache: dict[LLMType, ChatOpenAI] = {}
 
+#For integration with OpenAI API
+# replace the OllamaLLM with ChatOpenAI
 
 def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> ChatOpenAI:
     llm_type_map = {

@@ -44,6 +44,37 @@ def handoff_to_planner(
     return
 
 
+def array_to_dict(array, key_attr=None):
+    """
+    Convert an array of objects/dictionaries into a dictionary.
+    
+    Parameters:
+    - array: List of objects or dictionaries
+    - key_attr: The attribute or key to use as the dictionary key (optional)
+             If None, it will use numeric indices as keys
+    
+    Returns:
+    - A dictionary with the transformed data
+    """
+    result = {}
+    
+    if key_attr is None:
+        # Use indices as keys if no key attribute is specified
+        result = {i: item for i, item in enumerate(array)}
+    else:
+        # Use the specified attribute as keys
+        for item in array:
+            if isinstance(item, dict):
+                # If items are dictionaries
+                if key_attr in item:
+                    result[item[key_attr]] = item
+            else:
+                # If items are objects with attributes
+                if hasattr(item, key_attr):
+                    result[getattr(item, key_attr)] = item
+    
+    return result
+
 def background_investigation_node(
     state: State, config: RunnableConfig
 ) -> Command[Literal["planner"]]:
@@ -106,7 +137,7 @@ def planner_node(
     if AGENT_LLM_MAP["planner"] == "basic":
         llm = get_llm_by_type(AGENT_LLM_MAP["planner"]).with_structured_output(
             Plan,
-            method="json_mode",
+            method="json_schema",
         )
     else:
         llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
@@ -117,8 +148,26 @@ def planner_node(
 
     full_response = ""
     if AGENT_LLM_MAP["planner"] == "basic":
-        response = llm.invoke(messages)
-        full_response = response.model_dump_json(indent=4, exclude_none=True)
+        #TODO: remove this when the bug is fixed
+        print(f"mensajes: {messages}")
+        #messages = array_to_dict(messages)
+        response = llm.stream(messages)
+        plan_chunks = []
+        for chunk in response:
+            plan_chunks.append(chunk)
+        
+        # Since we're getting Plan objects, we need to handle them differently
+        if plan_chunks:
+            # Take the last complete Plan object
+            final_plan = plan_chunks[-1]
+            full_response = final_plan.model_dump_json(indent=4, exclude_none=True)
+        else:
+            # Fallback if no chunks received
+            full_response = "{}"
+        # response = llm.stream(messages)
+        # for chunk in response:
+        #     full_response += chunk.content
+        # #full_response = response.model_dump_json(indent=4, exclude_none=True)
     else:
         response = llm.stream(messages)
         for chunk in response:
